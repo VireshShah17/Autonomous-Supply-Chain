@@ -6,7 +6,7 @@ logger = setup_logger()
 
 
 class OdooClient:
-    def __init__(self, url="http://localhost:8069", db="supply_chain_db", username="admin", password="admin"):
+    def __init__(self, url="http://web:8069", db="supply_chain_db", username="admin", password="admin"):
         self.url = url
         self.db = db
         self.username = username

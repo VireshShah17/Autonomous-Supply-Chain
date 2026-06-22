@@ -8,7 +8,7 @@ from langchain_classic.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 
-MCP_SERVER_URL = "http://localhost:8000"
+MCP_SERVER_URL = "http://mcp-server:8000"
 logger = setup_logger()
 
 def fetch_mcp_tools():
