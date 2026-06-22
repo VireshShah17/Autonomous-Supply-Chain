@@ -13,8 +13,8 @@ app = FastAPI(title = "Autonomous Supply Chain MCP Server", version = "1.0")
 # Initialize our Odoo connector
 try:
     odoo = OdooClient()
-except Exception:
-    logger.warning("===== Warning: Could not connect to Odoo on startup. Ensure Odoo is running =====")
+except Exception as e:
+    logger.warning(f"===== Warning: Could not connect to Odoo on startup. Ensure Odoo is running. Error: {e} =====")
     odoo = None
 
 
@@ -52,12 +52,18 @@ def list_tools():
             },
             {
                 "name": "reroute_order_warehouse",
-                "description": "Changes the origin fulfillment warehouse for a specific sales order ID to clear delays.",
+                "description": "CRITICAL: You MUST use the exact argument names 'order_name' (string) and 'warehouse_id' (integer). Do not use 'order_id' or 'W001'. Example: order_name: 'S00012', warehouse_id: 1.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "order_name": {"type": "string", "description": "The Order reference code (e.g., 'S00012')."},
-                        "warehouse_id": {"type": "integer", "description": "The internal ID of the target warehouse."}
+                        "order_name": {
+                            "type": "string", 
+                            "description": "The exact Order reference code string (e.g., 'S00012'). Do not use 'order_id'."
+                        },
+                        "warehouse_id": {
+                            "type": "integer", 
+                            "description": "The internal numerical ID of the target warehouse (e.g., 1). Do not use letters like 'W'."
+                        }
                     },
                     "required": ["order_name", "warehouse_id"]
                 }
@@ -78,19 +84,50 @@ def execute_tool(request: ToolCallRequest):
     name = request.tool_name
     args = request.arguments
 
-    if name == "check_inventory":
-        return {"content": [
-            {"type": "text", "text": str(odoo.check_inventory(args.get("product_name_query")))}
-        ]}
+    # ---- NEW DEBUG PRINT STATEMENT ----
+    logger.info(f"\n[DEBUG] Tool Name: {name}")
+    logger.info(f"[DEBUG] Raw Arguments Received: {args}")
+    logger.info(f"[DEBUG] Type of args: {type(args)}")
+    # -----------------------------------
+
+    try:
+        if name == "check_inventory":
+            query = args.get("product_name_query")
+
+            if not query:
+                return {"content": [
+                    {"type": "text", "text": "Error: Missing product_name_query argument. Ask the user for the product name."}
+                ]}
+
+            return {"content": [
+                {"type": "text", "text": str(odoo.check_inventory(query))}
+            ]}
+            
+        elif name == "get_delayed_orders":
+            return {"content": [
+                {"type": "text", "text": str(odoo.get_delayed_orders())}
+            ]}
+            
+        elif name == "reroute_order_warehouse":
+            order_name = args.get("order_name")
+            warehouse_id = args.get("warehouse_id")
+            
+            # Catch LLM hallucinations here
+            if not order_name or warehouse_id is None:
+                return {"content": [
+                    {"type": "text", "text": "Error: Missing order_name or warehouse_id. Please verify the order name and target warehouse ID and try again."}
+                ]}
+
+            return {"content": [
+                {"type": "text", "text": str(odoo.reroute_order_warehouse(order_name, warehouse_id))}
+            ]}
         
-    elif name == "get_delayed_orders":
-        return {"content": [
-            {"type": "text", "text": str(odoo.get_delayed_orders())}
-        ]}
+        raise HTTPException(status_code = 404, detail = f"Tool '{name}' not found.")
         
-    elif name == "reroute_order_warehouse":
+    except Exception as e:
+        logger.error(f"===== Tool execution failed internally for {name}: {e} =====")
+
+        # Prevent 500 errors from crashing the server by returning exceptions as text to the LLM
         return {"content": [
-            {"type": "text", "text": str(odoo.reroute_order_warehouse(args.get("order_name"), args.get("warehouse_id")))}
+            {"type": "text", "text": f"Tool execution failed internally: {str(e)}"}
         ]}
-    
-    raise HTTPException(status_code = 404, detail = f"Tool '{name}' not found.")

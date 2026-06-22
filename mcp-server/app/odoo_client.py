@@ -55,6 +55,10 @@ class OdooClient:
             [[['name', 'ilike', product_name_query]]]
         )
 
+        # Guard clause: check if it's an error dict from execute_kw
+        if isinstance(product_ids, dict) and "error" in product_ids:
+            return product_ids
+
         if not product_ids:
             return {"message": f"No products found matching '{product_name_query}'."}
 
@@ -78,6 +82,10 @@ class OdooClient:
             [[['state', '=', 'sale'], ['delivery_status', '!=', 'full']]]
         )
 
+        # Guard clause: check if it's an error dict from execute_kw
+        if isinstance(order_ids, dict) and "error" in order_ids:
+            return order_ids
+
         if not order_ids:
             return {"message": "No delayed or unfulfilled orders found."}
 
@@ -100,17 +108,26 @@ class OdooClient:
             [[['name', '=', order_name]]]
         )
 
+        # Guard clause: check if it's an error dict from execute_kw
+        if isinstance(order_ids, dict) and "error" in order_ids:
+            return order_ids
+
         if not order_ids:
             return {"error": f"Order {order_name} not found."}
+
+        # Safe cast to integer to prevent NoneType or string errors from LLM hallucinations
+        try:
+            safe_warehouse_id = int(warehouse_id)
+        except (ValueError, TypeError):
+            return {"error": f"Invalid warehouse_id provided: {warehouse_id}. Must be an integer."}
 
         # 2. Write the new warehouse ID to the order
         result = self.execute_kw(
             'sale.order', 'write',
-            [order_ids, {'warehouse_id': int(warehouse_id)}]
+            [order_ids, {'warehouse_id': safe_warehouse_id}]
         )
 
         if result and not isinstance(result, dict):
-            return {"status": "success", "message": f"Order {order_name} successfully rerouted to Warehouse ID {warehouse_id}."}
+            return {"status": "success", "message": f"Order {order_name} successfully rerouted to Warehouse ID {safe_warehouse_id}."}
         
         return {"status": "failed", "error": str(result)}
-
