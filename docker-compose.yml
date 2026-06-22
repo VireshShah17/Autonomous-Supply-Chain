@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo_password
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data
+    # Resource limiting to protect your 4GB RAM
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  web:
+    image: odoo:17.0
+    depends_on:
+      - db
+    ports:
+      - "8069:8069"
+    volumes:
+      - odoo-web-data:/var/lib/odoo
+      - ./odoo-backend/addons:/mnt/extra-addons
+    environment:
+      - HOST=db
+      - USER=odoo
+      - PASSWORD=odoo_password
+    # Resource limiting to protect your 4GB RAM
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+
+volumes:
+  odoo-db-data:
+  odoo-web-data:
